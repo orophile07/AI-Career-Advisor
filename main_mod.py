@@ -19,7 +19,9 @@ llm = ChatGroq(temperature=0, model_name="llama3-8b-8192", api_key=groq_api_key)
 
 # Prompt template for resume and job description analysis
 template = """
-You are a career advisor AI assistant. Analyze how well the candidate's resume fits the job description.
+You are an expert AI Career Advisor. Your task is to evaluate how well a candidate's resume aligns with a specific job description (JD).
+
+Start by carefully reading and extracting key information:
 
 RESUME:
 {resume_text}
@@ -27,20 +29,22 @@ RESUME:
 JOB DESCRIPTION:
 {jd_text}
 
-Perform:
-1. Extract name, skills, experience, and education from the resume.
-2. Extract required skills and responsibilities from the job description.
-3. Compare resume vs JD and do a skill gap analysis — only include skills relevant to the JD.
-4. Suggest 2-3 resume improvements that would help match this JD better.
-5. Provide short, personalized career advice based on the resume and JD.
+Now perform the following in order:
+1. **Extract** the candidate's name, technical skills, experience (roles + duration), and education from the resume.
+2. **Extract** the most relevant skills, qualifications, and responsibilities from the JD. Focus on what the company is **specifically looking for**.
+3. **Do a skill gap analysis** by comparing resume and JD. List **only the missing or weak skills** relative to the JD (not skills unrelated to the job).
+4. **Suggest 2-3 concise, practical resume improvements** to make it more aligned with this JD (e.g., adding projects, skills, keywords).
+5. **Give personalized career advice** (short, actionable, and tailored to the candidate’s profile and the job).
 
-Only return this JSON:
-{{
-  "match_score": <int from 0-100>,
-  "missing_skills": ["skill1", "skill2", ...],
-  "recommendations": ["Tip 1", "Tip 2", ...],
-  "feedback": "Short personalized advice."
-}}
+🎯 Only consider skills that are **directly relevant** to the JD role (e.g., if JD is for AI/ML engineer, ignore missing frontend skills).
+
+Return ONLY valid JSON with these keys:
+- match_score (int from 0 to 100)
+- missing_skills (list of relevant but absent skills)
+- recommendations (2–3 short, practical resume improvement tips)
+- feedback (1–2 sentence personalized career advice)
+
+Do NOT include markdown, triple backticks, or explanations — just raw JSON output.
 """
 
 # Create a prompt template
@@ -67,19 +71,26 @@ def extract_resume_text(uploaded_file): # Renamed from pdf_path → uploaded_fil
 # Analyze resume against job description using the LLM chain
 def analyze_resume_vs_jd(resume_path, jd_text):
     resume_text = extract_resume_text(resume_path)
-    response = chain.run(resume_text=resume_text, jd_text=jd_text)
+    response = chain.invoke({"resume_text": resume_text, "jd_text": jd_text})
 
-    # Try extracting JSON from LLM response (inside triple backticks)
-    match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(1).strip())
-        except json.JSONDecodeError:
-            pass
+    # 🧠 Ensure response is a string
+    if isinstance(response, dict) and "text" in response:
+        response_text = response["text"]
+    else:
+        response_text = str(response)
+
+    # Try extracting JSON from LLM response
+    try:
+        json_match = re.search(r"\{[\s\S]*\}", response_text)
+        if json_match:
+            cleaned_json = json_match.group(0)
+            return json.loads(cleaned_json)
+    except json.JSONDecodeError:
+        pass
 
     # Fallback to Python dict parsing if JSON fails
     try:
-        parsed = ast.literal_eval(response.strip())
+        parsed = ast.literal_eval(response_text.strip())
         if isinstance(parsed, dict):
             return parsed
     except Exception:
@@ -88,5 +99,5 @@ def analyze_resume_vs_jd(resume_path, jd_text):
     # Return raw output on failure
     return {
         "error": "Could not parse response as valid JSON or Python dict.",
-        "raw_output": response
+        "raw_output": response_text
     }
