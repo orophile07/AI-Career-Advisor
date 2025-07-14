@@ -1,7 +1,7 @@
 Requirements:
 
 streamlit
-langchain
+langchain.community
 langchain-groq
-python-dotenv
+dotenv
 PyMuPDF
