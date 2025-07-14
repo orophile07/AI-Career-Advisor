@@ -8,6 +8,7 @@ from langchain.document_loaders import PyMuPDFLoader
 import os
 from dotenv import load_dotenv
 import json, re, ast
+import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -18,7 +19,7 @@ llm = ChatGroq(temperature=0, model_name="llama3-8b-8192", api_key=groq_api_key)
 
 # Prompt template for resume and job description analysis
 template = """
-You are a career advisor AI assistant. Analyze the following:
+You are a career advisor AI assistant. Analyze how well the candidate's resume fits the job description.
 
 RESUME:
 {resume_text}
@@ -27,20 +28,21 @@ JOB DESCRIPTION:
 {jd_text}
 
 Perform:
-1. Extract name, skills, experience, education from the resume.
+1. Extract name, skills, experience, and education from the resume.
 2. Extract required skills and responsibilities from the job description.
-3. Do a skill gap analysis.
-4. Suggest resume improvements.
-5. Provide personalized career advice.
+3. Compare resume vs JD and do a skill gap analysis — only include skills relevant to the JD.
+4. Suggest 2-3 resume improvements that would help match this JD better.
+5. Provide short, personalized career advice based on the resume and JD.
 
-Output JSON like:
+Only return this JSON:
 {{
   "match_score": <int from 0-100>,
-  "missing_skills": [...],
-  "recommendations": [...],
-  "feedback": "<string>"
+  "missing_skills": ["skill1", "skill2", ...],
+  "recommendations": ["Tip 1", "Tip 2", ...],
+  "feedback": "Short personalized advice."
 }}
 """
+
 # Create a prompt template
 prompt = PromptTemplate(
     input_variables=["resume_text", "jd_text"],
@@ -51,8 +53,14 @@ prompt = PromptTemplate(
 chain = LLMChain(llm=llm, prompt=prompt)
 
 # Extract text content from PDF resume
-def extract_resume_text(pdf_path):
-    loader = PyMuPDFLoader(pdf_path)
+def extract_resume_text(uploaded_file): # Renamed from pdf_path → uploaded_file
+    # Change: Save uploaded file to a temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(uploaded_file.read())
+        tmp_path = tmp_file.name
+
+    # Pass temp file path to the loader
+    loader = PyMuPDFLoader(tmp_path)
     pages = loader.load()
     return "\n".join([page.page_content for page in pages])
 
