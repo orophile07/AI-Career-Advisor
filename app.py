@@ -1,39 +1,50 @@
-# app.py
-
 import streamlit as st
 from main_mod import analyze_resume_vs_jd
 import json
 
-# Streamlit page setup
 st.set_page_config(page_title="AI Career Advisor", layout="centered")
 st.title("🤖 AI Career Advisor")
 st.markdown("Upload your **Resume (PDF)** and paste a **Job Description (JD)** to get career insights.")
 
-# File upload and job description input
-uploaded_resume = st.file_uploader("📄 Upload Resume (PDF)", type="pdf")
-job_desc = st.text_area("📝 Paste Job Description Here")
+# File uploader
+uploaded_resume = st.file_uploader("📄 Upload Resume (PDF)", type=["pdf"])
 
-# Run analysis if both inputs are provided
-if uploaded_resume and job_desc:
-    with open("temp_resume.pdf", "wb") as f:
-        f.write(uploaded_resume.read())
-    
-    with st.spinner("Analyzing your resume... ⏳"):
-        result = analyze_resume_vs_jd("temp_resume.pdf", job_desc)
+# Job description input
+jd_text = st.text_area("🧾 Paste Job Description", height=200)
 
-    # Display results if analysis succeeds
-    if isinstance(result, dict) and "error" not in result:
-        st.subheader("📊 Career Report")
+# 🔁 Change: Replaced auto-run with button interaction
+if st.button("🔍 Analyze"):
+    if uploaded_resume and jd_text.strip():
+        with st.spinner("Analyzing resume against job description..."):
+            result = analyze_resume_vs_jd(uploaded_resume, jd_text)
         
-        st.markdown(f"**🎯 Match Score:** `{result['match_score']}`")
-        
-        st.markdown("### 🔍 Missing Skills")
-        for i, skill in enumerate(result["missing_skills"], start=1):
-            st.markdown(f"{i}. {skill}")
-            
-        st.markdown("### 💡 Recommendations")
-        for i, rec in enumerate(result["recommendations"], start=1):
-            st.markdown(f"{i}. {rec}")
-            
-        st.markdown("### 🗣️ Feedback")
-        st.markdown(f"> {result['feedback']}")
+        st.success("✅ Analysis Complete")
+
+        if "error" in result:
+            st.error("⚠️ Could not parse the LLM output.")
+            st.text_area("📝 Raw LLM Output", result["raw_output"], height=300)
+        else:
+            # 📊 Match Score
+            st.markdown("### 📈 <span style='font-size:22px;'>Match Score</span>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='color:#4CAF50'>{result['match_score']}%</h2>", unsafe_allow_html=True)
+
+            # 🔍 Missing Skills
+            st.markdown("### 🧠 <span style='font-size:22px;'>Missing Skills</span>", unsafe_allow_html=True)
+            if result['missing_skills']:
+                st.markdown(
+                    "".join([f"- {skill}<br>" for skill in result['missing_skills']]),
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown("*None!* ✅")
+
+            # 💡 Recommendations
+            st.markdown("### 🛠️ <span style='font-size:22px;'>Recommendations</span>", unsafe_allow_html=True)
+            for rec in result["recommendations"]:
+                st.markdown(f"🔹 {rec}")
+
+            # 🎯 Career Advice
+            st.markdown("### 🎯 <span style='font-size:22px;'>Career Advice</span>", unsafe_allow_html=True)
+            st.info(result["feedback"])
+    else:
+        st.warning("⚠️ Please upload a resume and paste a job description.")
