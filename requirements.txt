@@ -1,0 +1,7 @@
+Requirements:
+
+streamlit
+langchain
+langchain-groq
+python-dotenv
+PyMuPDF
