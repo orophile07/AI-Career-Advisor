@@ -73,7 +73,7 @@ def analyze_resume_vs_jd(resume_path, jd_text):
     resume_text = extract_resume_text(resume_path)
     response = chain.invoke({"resume_text": resume_text, "jd_text": jd_text})
 
-    # 🧠 Ensure response is a string
+    # Ensure response is a string
     if isinstance(response, dict) and "text" in response:
         response_text = response["text"]
     else:
